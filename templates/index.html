@@ -1,0 +1,12 @@
+<html>
+    <head></head>
+    <body>
+        <h1>Hello {{.Name}}</h1>
+
+        {{ if .DBStatus }}
+            <p>The database connection is live :)</p>
+        {{ else }}
+            <p>The database connection is dead :(</p>
+        {{ end }}
+    </body>
+</html>
