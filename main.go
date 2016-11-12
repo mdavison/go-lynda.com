@@ -2,7 +2,6 @@ package main
 
 import (
 	"net/http"
-	"html/template"
 
 	"database/sql"
 	_ "github.com/mattn/go-sqlite3"
@@ -12,11 +11,19 @@ import (
 	"encoding/xml"
 
 	"github.com/urfave/negroni"
+	"github.com/yosssi/ace"
+	gmux "github.com/gorilla/mux"
 )
 
+type Book struct {
+	PK int
+	Title string
+	Author string
+	Classification string
+}
+
 type Page struct {
-	Name string
-	DBStatus bool
+	Books []Book
 }
 
 type SearchResult struct {
@@ -53,24 +60,30 @@ func verifyDatabase(w http.ResponseWriter, r *http.Request, next http.HandlerFun
 }
 
 func main() {
-	templates := template.Must(template.ParseFiles("templates/index.html"))
-
 	db, _ = sql.Open("sqlite3", "dev.db")
 
-	mux := http.NewServeMux()
+	//mux := http.NewServeMux()
+	mux := gmux.NewRouter()
 
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request){
-		p := Page{ Name: "Gopher" }
-		if name := r.FormValue("name"); name != "" {
-			p.Name = name
-		}
-
-		p.DBStatus = db.Ping() == nil
-
-		if err := templates.ExecuteTemplate(w, "index.html", p); err != nil {
+		//template, err := ace.Load("templates/index", "", nil)
+		template, err := ace.Load("templates/index", "", nil)
+		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
-	})
+
+		p := Page{ Books: []Book{} }
+		rows, _ := db.Query("SELECT pk, title, author, classification FROM books")
+		for rows.Next() {
+			var b Book
+			rows.Scan(&b.PK, &b.Title, &b.Author, &b.Classification)
+			p.Books = append(p.Books, b)
+		}
+
+		if err = template.Execute(w, p); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+	}).Methods("GET")
 
 	mux.HandleFunc("/search", func(w http.ResponseWriter, r *http.Request){
 		var results []SearchResult
@@ -84,9 +97,9 @@ func main() {
 		if err := encoder.Encode(results); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
-	})
+	}).Methods("POST")
 
-	mux.HandleFunc("/books/add", func (w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/books", func (w http.ResponseWriter, r *http.Request) {
 		var book ClassifyBookResponse
 		var err error
 
@@ -94,13 +107,34 @@ func main() {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
 
-		_, err = db.Exec("insert into books (pk, title, author, id, classification) values (?, ?, ?, ?, ?)",
-		nil, book.BookData.Title, book.BookData.Author, book.BookData.ID, book.Classification.MostPopular)
+		result, err := db.Exec("insert into books (pk, title, author, id, classification) values (?, ?, ?, ?, ?)",
+			nil, book.BookData.Title, book.BookData.Author, book.BookData.ID, book.Classification.MostPopular)
 
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
-	})
+
+		pk, _ := result.LastInsertId()
+		b := Book {
+			PK: int(pk),
+			Title: book.BookData.Title,
+			Author: book.BookData.Author,
+			Classification: book.Classification.MostPopular,
+		}
+
+		if err := json.NewEncoder(w).Encode(b); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+	}).Methods("PUT")
+
+	mux.HandleFunc("/books/{pk}", func(w http.ResponseWriter, r *http.Request){
+		if _, err := db.Exec("DELETE FROM books WHERE pk = ?", gmux.Vars(r)["pk"]); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		w.WriteHeader(http.StatusOK)
+	}).Methods("DELETE")
 
 	n := negroni.Classic()
 	n.Use(negroni.HandlerFunc(verifyDatabase))

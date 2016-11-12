@@ -1,0 +1,119 @@
+= doctype html
+html
+  head
+    = css
+        #search-results tr:hover,
+         #view-results tr:hover {
+            background-color: lightgray;
+            cursor: pointer;
+        }
+        #page-switcher {
+            width: 100%
+            text-align: center
+        }
+        #page-switcher button {
+            font-size: 24px;
+            font-weight: bold;
+            margin: 1em;
+            padding: .3em;
+        }
+        .delete-btn {
+            color: white;
+            background-color: #d9534f;
+            border-color: #d43f3a;
+            border-radius: 8px;
+        }
+
+    body
+      div#page-switcher
+        button onclick="showViewPage()" View Library
+        button onclick="showSearchPage()" Add Books
+
+      div#search-page style="display: none;"
+        form id="search-form" onsubmit="return false"
+          input name="search"
+          input type="submit" value="Search" onclick="submitSearch()"
+
+        table width="100%"
+          thead
+            tr style="text-align: left;"
+              th width="40%" Title
+              th width="30%" Author
+              th width="10%" Year
+              th width="20%" ID
+
+          tbody id="search-results"
+
+      div#view-page
+        table width="100%"
+          thead
+            tr style="text-align: left;"
+              th width="45%" Title
+              th width="35%" Author
+              th width="15%" Classification
+              th width="5%"
+          tbody#view-results
+            {{range .Books}}
+              tr id="book-row-{{.PK}}"
+                td {{.Title}}
+                td {{.Author}}
+                td {{.Classification}}
+                td
+                  button.delete-btn onclick="deleteBook({{.PK}})" Delete
+            {{end}}
+
+        script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.0/jquery.min.js"
+        = javascript
+            function deleteBook(pk) {
+                $.ajax({
+                    method: "DELETE",
+                    url: "/books/" + pk,
+                    success: function() {
+                        $("#book-row-" + pk).remove();
+                    }
+                });
+            }
+
+            function showSearchPage() {
+              $("#search-page").show();
+              $("#view-page").hide();
+            }
+
+            function showViewPage() {
+              $("#search-page").hide();
+              $("#view-page").show();
+            }
+
+            function submitSearch() {
+                $.ajax({
+                    url: "/search",
+                    method: "POST",
+                    data: $("#search-form").serialize(),
+                    success: function(rawData) {
+                        var parsed = JSON.parse(rawData);
+                        if (!parsed) return;
+
+                        var searchResults = $("#search-results");
+                        searchResults.empty(); // Empty out any existing results
+
+                        parsed.forEach(function(result) {
+                            var row = $("<tr><td>" + result.Title + "</td><td>" + result.Author + "</td><td>" + result.Year + "</td><td>" + result.ID + "</td></tr>");
+                            searchResults.append(row);
+                            row.on("click", function() {
+                                console.log("clicked on a row")
+                                $.ajax({
+                                    url: "/books?id=" + result.ID,
+                                    method: "PUT",
+                                    success: function(data) {
+                                        var book = JSON.parse(data);
+                                        if (!book) return;
+                                        $("#view-results").append("<tr id='book-row-" + book.PK + "'><td>" + book.Title + "</td><td>" + book.Author + "</td><td>" + book.Classification + "</td><td><button class='delete-btn' onclick='deleteBook(" + book.PK + ")'>Delete</button></td></tr>");
+                                    }
+                                })
+                            })
+                        });
+                    }
+                });
+
+                return false;
+            }
