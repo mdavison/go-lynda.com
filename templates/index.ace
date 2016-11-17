@@ -24,8 +24,15 @@ html
             border-color: #d43f3a;
             border-radius: 8px;
         }
+        #user-info {
+            text-align: right;
+        }
 
     body
+      div#user-info
+        div Hello <b>{{.User}}</b>
+        a href="/logout" (Log Out)
+
       div#page-switcher
         button onclick="showViewPage()" View Library
         button onclick="showSearchPage()" Add Books
