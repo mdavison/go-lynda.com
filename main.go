@@ -4,40 +4,40 @@ import (
 	"net/http"
 
 	"database/sql"
-	_ "github.com/mattn/go-sqlite3"
 	"encoding/json"
-	"net/url"
-	"io/ioutil"
 	"encoding/xml"
-	"strconv"
+	_ "github.com/mattn/go-sqlite3"
 	"golang.org/x/crypto/bcrypt"
+	"io/ioutil"
+	"net/url"
+	"strconv"
 
-	"github.com/urfave/negroni"
-	"github.com/yosssi/ace"
-	gmux "github.com/gorilla/mux"
-	"gopkg.in/gorp.v1"
 	"github.com/goincremental/negroni-sessions"
 	"github.com/goincremental/negroni-sessions/cookiestore"
+	gmux "github.com/gorilla/mux"
+	"github.com/urfave/negroni"
+	"github.com/yosssi/ace"
+	"gopkg.in/gorp.v1"
 )
 
 type Book struct {
-	PK int64 `db:"pk"`
-	Title string `db:"title"`
-	Author string `db:"author"`
+	PK             int64  `db:"pk"`
+	Title          string `db:"title"`
+	Author         string `db:"author"`
 	Classification string `db:"classification"`
-	ID string `db:"id"`
-	User string `db:"user"`
+	ID             string `db:"id"`
+	User           string `db:"user"`
 }
 
 type User struct {
 	Username string `db:"username"`
-	Secret []byte `db:"secret"`
+	Secret   []byte `db:"secret"`
 }
 
 type Page struct {
-	Books []Book
+	Books  []Book
 	Filter string
-	User string
+	User   string
 }
 
 type LoginPage struct {
@@ -45,18 +45,18 @@ type LoginPage struct {
 }
 
 type SearchResult struct {
-	Title string `xml:"title,attr"`
+	Title  string `xml:"title,attr"`
 	Author string `xml:"author,attr"`
-	Year string `xml:"hyr,attr"`
-	ID int `xml:"owi,attr"`
+	Year   string `xml:"hyr,attr"`
+	ID     int    `xml:"owi,attr"`
 }
 
 type ClassifyBookResponse struct {
 	BookData struct {
-		 Title string `xml:"title,attr"`
-		 Author string `xml:"author,attr"`
-		 ID int `xml:"owi,attr"`
- 	} `xml:"work"`
+		Title  string `xml:"title,attr"`
+		Author string `xml:"author,attr"`
+		ID     int    `xml:"owi,attr"`
+	} `xml:"work"`
 	Classification struct {
 		MostPopular string `xml:"sfa,attr"`
 	} `xml:"recommendations>ddc>mostPopular"`
@@ -99,7 +99,7 @@ func getBookCollection(books *[]Book, sortCol, filterByClass, username string, w
 		where += " AND classification not BETWEEN '800' and '900'"
 	}
 
-	if _, err := dbmap.Select(books, "SELECT * FROM books" + where + " ORDER BY " + sortCol, username); err != nil {
+	if _, err := dbmap.Select(books, "SELECT * FROM books"+where+" ORDER BY "+sortCol, username); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return false
 	}
@@ -206,13 +206,13 @@ func main() {
 		}
 	}).Methods("GET").Queries("sortBy", "{sortBy:title|author|classification}")
 
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request){
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		template, err := ace.Load("templates/index", "", nil)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
 
-		p := Page{ Books: []Book{}, Filter: getStringFromSession(r, "Filter"), User: getStringFromSession(r, "User") }
+		p := Page{Books: []Book{}, Filter: getStringFromSession(r, "Filter"), User: getStringFromSession(r, "User")}
 		if !getBookCollection(&p.Books, getStringFromSession(r, "SortBy"), getStringFromSession(r, "Filter"), p.User, w) {
 			return
 		}
@@ -222,7 +222,7 @@ func main() {
 		}
 	}).Methods("GET")
 
-	mux.HandleFunc("/search", func(w http.ResponseWriter, r *http.Request){
+	mux.HandleFunc("/search", func(w http.ResponseWriter, r *http.Request) {
 		var results []SearchResult
 		var err error
 
@@ -236,7 +236,7 @@ func main() {
 		}
 	}).Methods("POST")
 
-	mux.HandleFunc("/logout", func (w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/logout", func(w http.ResponseWriter, r *http.Request) {
 		sessions.GetSession(r).Set("User", nil)
 		sessions.GetSession(r).Set("Filter", nil)
 
@@ -244,7 +244,7 @@ func main() {
 	})
 
 	// Adding books
-	mux.HandleFunc("/books", func (w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/books", func(w http.ResponseWriter, r *http.Request) {
 		var book ClassifyBookResponse
 		var err error
 
@@ -252,13 +252,13 @@ func main() {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
 
-		b := Book {
-			PK: -1,
-			Title: book.BookData.Title,
-			Author: book.BookData.Author,
+		b := Book{
+			PK:             -1,
+			Title:          book.BookData.Title,
+			Author:         book.BookData.Author,
 			Classification: book.Classification.MostPopular,
-			ID: r.FormValue("id"),
-			User: getStringFromSession(r, "User"),
+			ID:             r.FormValue("id"),
+			User:           getStringFromSession(r, "User"),
 		}
 		if err = dbmap.Insert(&b); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -271,7 +271,7 @@ func main() {
 	}).Methods("PUT")
 
 	// Delete books
-	mux.HandleFunc("/books/{pk}", func(w http.ResponseWriter, r *http.Request){
+	mux.HandleFunc("/books/{pk}", func(w http.ResponseWriter, r *http.Request) {
 		pk, _ := strconv.ParseInt(gmux.Vars(r)["pk"], 10, 64)
 		var b Book
 		if err := dbmap.SelectOne(&b, "SELECT * FROM books WHERE pk=? and user=?", pk, getStringFromSession(r, "User")); err != nil {
