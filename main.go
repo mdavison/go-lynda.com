@@ -18,6 +18,8 @@ import (
 	"github.com/urfave/negroni"
 	"github.com/yosssi/ace"
 	"gopkg.in/gorp.v1"
+
+	. "./models"
 )
 
 type Book struct {
@@ -29,10 +31,10 @@ type Book struct {
 	User           string `db:"user"`
 }
 
-type User struct {
-	Username string `db:"username"`
-	Secret   []byte `db:"secret"`
-}
+//type User struct {
+//	Username string `db:"username"`
+//	Secret   []byte `db:"secret"`
+//}
 
 type Page struct {
 	Books  []Book
@@ -138,9 +140,10 @@ func main() {
 	mux.HandleFunc("/login", func(w http.ResponseWriter, r *http.Request) {
 		var p LoginPage
 		if r.FormValue("register") != "" {
-			secret, _ := bcrypt.GenerateFromPassword([]byte(r.FormValue("password")), bcrypt.DefaultCost)
-			user := User{r.FormValue("username"), secret}
-			if err := dbmap.Insert(&user); err != nil {
+			//secret, _ := bcrypt.GenerateFromPassword([]byte(r.FormValue("password")), bcrypt.DefaultCost)
+			//user := User{r.FormValue("username"), secret}
+			user := NewUser(r.FormValue("username"), r.FormValue("password"))
+			if err := dbmap.Insert(user); err != nil {
 				p.Error = err.Error()
 			} else {
 				sessions.GetSession(r).Set("User", user.Username)
