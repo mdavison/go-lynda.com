@@ -20,8 +20,6 @@ import (
 	"github.com/urfave/negroni"
 	"github.com/yosssi/ace"
 	"gopkg.in/gorp.v1"
-
-	"github.com/lynda.com/models"
 )
 
 type Book struct {
@@ -42,6 +40,11 @@ type Page struct {
 	Books  []Book
 	Filter string
 	User   string
+}
+
+type User struct {
+	Username string `db:"username"`
+	Secret   []byte `db:"secret"`
 }
 
 type LoginPage struct {
@@ -136,6 +139,18 @@ func verifyUser(w http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
 		}
 	}
 	http.Redirect(w, r, "/login", http.StatusTemporaryRedirect)
+}
+
+func NewUser(un, pw string) *User {
+	secret, _ := bcrypt.GenerateFromPassword([]byte(pw), bcrypt.DefaultCost)
+	return &User {
+		Username: un,
+		Secret: secret,
+	}
+}
+
+func (u *User) Authenticate(pw string) bool {
+	return bcrypt.CompareHashAndPassword(u.Secret, []byte(pw)) == nil
 }
 
 func main() {
@@ -301,7 +316,7 @@ func main() {
 	n.Use(negroni.HandlerFunc(verifyUser))
 	n.UseHandler(mux)
 
-	p := os.Getenv("PORT")
+	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
 	}
