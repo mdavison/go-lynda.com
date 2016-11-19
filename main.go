@@ -7,10 +7,12 @@ import (
 	"encoding/json"
 	"encoding/xml"
 	_ "github.com/mattn/go-sqlite3"
+	_ "github.com/lib/pq"
 	"golang.org/x/crypto/bcrypt"
 	"io/ioutil"
 	"net/url"
 	"strconv"
+	"os"
 
 	"github.com/goincremental/negroni-sessions"
 	"github.com/goincremental/negroni-sessions/cookiestore"
@@ -72,9 +74,13 @@ var db *sql.DB
 var dbmap *gorp.DbMap
 
 func initDB() {
-	db, _ = sql.Open("sqlite3", "dev.db")
-
-	dbmap = &gorp.DbMap{Db: db, Dialect: gorp.SqliteDialect{}}
+	if os.Getenv("ENV") != "production" {
+		db, _ = sql.Open("sqlite3", "dev.db")
+		dbmap = &gorp.DbMap{Db: db, Dialect: gorp.SqliteDialect{}}
+	} else {
+		db, _ = sql.Open("postgres", os.Getenv("DATABASE_URL"))
+		dbmap = &gorp.DbMap{Db: db, Dialect: gorp.PostgresDialect{}}
+	}
 	dbmap.AddTableWithName(Book{}, "books").SetKeys(true, "pk")
 	dbmap.AddTableWithName(User{}, "users").SetKeys(false, "username")
 	dbmap.CreateTablesIfNotExists()
@@ -94,7 +100,7 @@ func getBookCollection(books *[]Book, sortCol, filterByClass, username string, w
 		sortCol = "pk"
 	}
 
-	where := " WHERE user=?"
+	where := " WHERE \"user\"=" + dbmap.Dialect.BindVar(0)
 	if filterByClass == "fiction" {
 		where += " AND classification BETWEEN '800' and '900'"
 	} else if filterByClass == "nonfiction" {
@@ -277,7 +283,8 @@ func main() {
 	mux.HandleFunc("/books/{pk}", func(w http.ResponseWriter, r *http.Request) {
 		pk, _ := strconv.ParseInt(gmux.Vars(r)["pk"], 10, 64)
 		var b Book
-		if err := dbmap.SelectOne(&b, "SELECT * FROM books WHERE pk=? and user=?", pk, getStringFromSession(r, "User")); err != nil {
+		q := "SELECT * FROM books WHERE pk=" + dbmap.Dialect.BindVar(0) + " and \"user\"=" + dbmap.Dialect.BindVar(1)
+		if err := dbmap.SelectOne(&b, q, pk, getStringFromSession(r, "User")); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 		}
 		if _, err := dbmap.Delete(&b); err != nil {
@@ -293,7 +300,12 @@ func main() {
 	n.Use(negroni.HandlerFunc(verifyDatabase))
 	n.Use(negroni.HandlerFunc(verifyUser))
 	n.UseHandler(mux)
-	n.Run(":8080")
+
+	p := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+	n.Run(":" + port)
 }
 
 func find(id string) (ClassifyBookResponse, error) {
