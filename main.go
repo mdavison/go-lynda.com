@@ -21,7 +21,7 @@ import (
 	"github.com/yosssi/ace"
 	"gopkg.in/gorp.v1"
 
-	. "./models"
+	"github.com/lynda.com/models"
 )
 
 type Book struct {
