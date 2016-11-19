@@ -1,1 +1,1 @@
-web: lynda-go-for-web-dev
+web: lynda.com
